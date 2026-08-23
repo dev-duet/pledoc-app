@@ -1,0 +1,56 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-cream-100 text-ink-900 font-sans antialiased;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  h1, h2, h3, h4 {
+    @apply font-sans;
+    line-height: 1.2;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-surface-100 rounded-2xl shadow-soft border border-cream-300/60;
+  }
+  .card-hover {
+    @apply transition-all duration-200 hover:shadow-soft-md hover:border-cream-400;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-semibold text-sm transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-citizen {
+    @apply bg-citizen-600 text-white hover:bg-citizen-700 active:scale-[0.98] shadow-soft;
+  }
+  .btn-data {
+    @apply bg-data-700 text-white hover:bg-data-800 active:scale-[0.98] shadow-soft;
+  }
+  .btn-decision {
+    @apply bg-decision-700 text-white hover:bg-decision-800 active:scale-[0.98] shadow-soft;
+  }
+  .btn-ghost {
+    @apply bg-transparent text-ink-700 hover:bg-cream-200 active:scale-[0.98];
+  }
+  .btn-outline {
+    @apply bg-surface-50 text-ink-800 border border-cream-400 hover:bg-cream-200 active:scale-[0.98];
+  }
+  .input {
+    @apply w-full bg-surface-50 border border-cream-400 rounded-xl px-4 py-3 text-ink-900 placeholder:text-ink-400 focus:outline-none focus:ring-2 focus:ring-citizen-400/40 focus:border-citizen-400 transition-all duration-200;
+  }
+  .label {
+    @apply block text-sm font-semibold text-ink-700 mb-1.5;
+  }
+  .badge {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold;
+  }
+}
