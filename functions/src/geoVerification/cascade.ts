@@ -12,7 +12,8 @@ export async function applyClusterDecision(
   db: admin.firestore.Firestore,
   clusterId: string,
   status: VerificationStatus,
-  priorityScore: number
+  priorityScore: number,
+  infraGapSeverity: number
 ): Promise<void> {
   const clusterRef = db.collection("clusters").doc(clusterId);
 
@@ -34,6 +35,7 @@ export async function applyClusterDecision(
       batch.update(clusterRef, {
         verification_status: status,
         priority_score: priorityScore,
+        infra_gap_severity: infraGapSeverity,
       });
     }
 
@@ -53,6 +55,7 @@ export async function applyClusterDecision(
     await clusterRef.update({
       verification_status: status,
       priority_score: priorityScore,
+      infra_gap_severity: infraGapSeverity,
     });
   }
 }

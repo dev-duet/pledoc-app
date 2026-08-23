@@ -1,7 +1,7 @@
 import * as admin from "firebase-admin";
 import { resolveGeoVerification } from "./autoResolve";
 import { applyClusterDecision } from "./cascade";
-import { computePriorityScore } from "./priorityScore";
+import { computePriorityScore } from "../prioritization/priorityCalculator";
 import { Cluster, Complaint } from "./types";
 
 /**
@@ -80,23 +80,29 @@ async function processCluster(clusterId: string, cluster: Cluster): Promise<void
     lastProcessedCount.set(clusterId, cluster.count);
 
     if (decision.status === "needs_review") {
+      const priorityScore = await computePriorityScore(db, {
+        volume: cluster.count,
+        verificationStatus: "needs_review",
+        infraGapSeverity: decision.infra_gap_severity,
+        category: cluster.category,
+        country: cluster.country,
+      });
       await db.collection("clusters").doc(clusterId).update({
-        priority_score: computePriorityScore({
-          volume: cluster.count,
-          verificationStatus: "needs_review",
-          infraGapSeverity: decision.infra_gap_severity,
-        }),
+        priority_score: priorityScore,
+        infra_gap_severity: decision.infra_gap_severity,
       });
       return;
     }
 
-    const priorityScore = computePriorityScore({
+    const priorityScore = await computePriorityScore(db, {
       volume: cluster.count,
       verificationStatus: decision.status,
       infraGapSeverity: decision.infra_gap_severity,
+      category: cluster.category,
+      country: cluster.country,
     });
 
-    await applyClusterDecision(db, clusterId, decision.status, priorityScore);
+    await applyClusterDecision(db, clusterId, decision.status, priorityScore, decision.infra_gap_severity);
   } catch (err) {
     // Same rule as the deployed version: never silently resolve on failure.
     console.error(`[geo-verify] Failed to process cluster ${clusterId}`, err);
