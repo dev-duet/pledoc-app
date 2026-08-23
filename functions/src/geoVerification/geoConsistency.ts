@@ -16,10 +16,22 @@ function distanceMeters(a: GeoPoint, b: GeoPoint): number {
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
+export interface ComplaintLocationInput {
+  location: string;
+  /** Optional extra detail from Gemini extraction (e.g. a landmark/street) — sharpens the geocode when present. */
+  location_detail?: string | null;
+}
+
 /**
- * Geocodes a list of location strings and checks whether they cluster tightly
- * together (within GEO_CONSISTENCY_RADIUS_METERS of each other). Used for the
- * "cluster size + consistent geo-tagging -> auto-verify" rule.
+ * Geocodes a list of complaint locations and checks whether they cluster
+ * tightly together (within GEO_CONSISTENCY_RADIUS_METERS of each other).
+ * Used for the "cluster size + consistent geo-tagging -> auto-verify" rule.
+ *
+ * When a complaint has `location_detail` (extra detail Gemini pulled from
+ * the transcript, e.g. a specific street or landmark not captured by the
+ * dropdowns), it's appended to the geocode query for a more precise point —
+ * falls back to `location` alone when detail is null/absent, which is the
+ * common case.
  *
  * NOTE: this calls Nominatim once per unique location string, throttled to
  * 1 req/sec. For a 15+ report cluster that's real latency (~15+ seconds).
@@ -30,14 +42,22 @@ function distanceMeters(a: GeoPoint, b: GeoPoint): number {
  *      past the free-tier hackathon stage.
  */
 export async function checkGeoConsistency(
-  locations: string[],
+  complaintLocations: ComplaintLocationInput[],
   countryHint?: string
 ): Promise<{ consistent: boolean; geocodedCount: number; spreadMeters: number | null }> {
-  const uniqueLocations = Array.from(new Set(locations));
+  // Dedupe on the combined query string so identical location+detail pairs
+  // aren't geocoded twice.
+  const uniqueQueries = Array.from(
+    new Set(
+      complaintLocations.map((c) =>
+        c.location_detail ? `${c.location}, ${c.location_detail}` : c.location
+      )
+    )
+  );
   const points: GeoPoint[] = [];
 
-  for (const loc of uniqueLocations) {
-    const point = await geocodeLocation(loc, countryHint);
+  for (const query of uniqueQueries) {
+    const point = await geocodeLocation(query, countryHint);
     if (point) points.push(point);
   }
 

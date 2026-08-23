@@ -58,9 +58,10 @@ async function processCluster(clusterId: string, cluster: Cluster): Promise<void
       .collection("complaints")
       .where("cluster_id", "==", clusterId)
       .get();
-    const complaintLocations = complaintsSnap.docs.map(
-      (d) => (d.data() as Complaint).location
-    );
+    const complaintLocations = complaintsSnap.docs.map((d) => {
+      const data = d.data() as Complaint;
+      return { location: data.location, location_detail: data.location_detail };
+    });
 
     if (complaintLocations.length === 0) {
       console.log(`[geo-verify] Cluster ${clusterId} has no linked complaints yet — skipping.`);

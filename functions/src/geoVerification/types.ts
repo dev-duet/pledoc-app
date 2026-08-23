@@ -4,6 +4,13 @@ export interface Complaint {
   id: string;
   category: string;
   location: string;
+  /**
+   * Optional extra location detail Gemini extracted from the citizen's
+   * transcript that wasn't already captured by the structured Country/
+   * State/District dropdowns (e.g. a specific street or landmark). Null on
+   * many docs — when present, it sharpens geocoding precision.
+   */
+  location_detail?: string | null;
   issue_summary: string;
   transcript?: string;
   language?: string;

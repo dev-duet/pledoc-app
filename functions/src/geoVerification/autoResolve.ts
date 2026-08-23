@@ -1,5 +1,5 @@
 import { GEO_CONFIG } from "./config";
-import { checkGeoConsistency } from "./geoConsistency";
+import { checkGeoConsistency, ComplaintLocationInput } from "./geoConsistency";
 import { queryNearbyFacilities } from "./osmClient";
 import { checkSecondarySource } from "./secondarySource";
 import { geocodeLocation } from "./osmClient";
@@ -9,8 +9,8 @@ interface ResolveInput {
   category: string;
   /** Cluster's representative location (e.g. location_bucket), used for the primary Overpass check. */
   clusterLocation: string;
-  /** Individual complaint location strings within this cluster, used for geo-consistency. */
-  complaintLocations: string[];
+  /** Individual complaints within this cluster (location + optional Gemini-extracted detail), used for geo-consistency. */
+  complaintLocations: ComplaintLocationInput[];
   count: number;
   country: string;
 }

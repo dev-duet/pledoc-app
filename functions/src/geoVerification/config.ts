@@ -24,7 +24,7 @@ export const GEO_CONFIG = {
   NOMINATIM_MIN_DELAY_MS: 1100,
 
   /** Required by Nominatim usage policy — replace with your actual contact/app info before the live demo. */
-  NOMINATIM_USER_AGENT: "Pledoc-Hackathon-Prototype/0.1 (contact: your-email@example.com)",
+  NOMINATIM_USER_AGENT: "Pledoc-Hackathon-Prototype/0.1 (contact: rachanan574@gmail,com)",
 } as const;
 
 /**
