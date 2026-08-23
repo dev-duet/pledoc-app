@@ -2,7 +2,19 @@ import { GEO_CONFIG, CATEGORY_OSM_TAGS } from "./config";
 import { GeoPoint, OverpassFacilityResult } from "./types";
 
 const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
-const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
+// Public Overpass servers can be flaky under load. Try each mirror, with a
+// short retry-with-backoff per mirror, before giving up — there's no
+// guaranteed uptime SLA on these free instances, and repeated testing in a
+// short window can trip temporary throttling.
+const OVERPASS_URLS = [
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter",
+  "https://lz4.overpass-api.de/api/interpreter",
+];
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 // Simple in-memory rate-limit guard for Nominatim (1 req/sec per their usage policy).
 // In a Cloud Functions environment each instance gets its own clock, which is fine
@@ -86,22 +98,51 @@ export async function queryNearbyFacilities(
     out ids;
   `;
 
-  const res = await fetch(OVERPASS_URL, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain" },
-    body: query,
-  });
+  // Try each mirror in order, with one short retry per mirror on a 5xx/
+  // network failure — a single transient blip shouldn't fail the whole
+  // check when a 3-second wait would clear it.
+  let lastError: unknown = null;
+  for (const url of OVERPASS_URLS) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "text/plain",
+            "User-Agent": GEO_CONFIG.NOMINATIM_USER_AGENT,
+          },
+          body: query,
+        });
 
-  if (!res.ok) {
-    // Overpass has generous but not infinite rate limits — treat a failure as
-    // "inconclusive", not "zero facilities", so it doesn't get misread as
-    // confirming an infra gap.
-    throw new Error(`Overpass query failed with status ${res.status}`);
+        if (!res.ok) {
+          lastError = new Error(`Overpass query failed with status ${res.status} (${url})`);
+          if (attempt === 0) {
+            await sleep(3000);
+            continue; // retry same mirror once
+          }
+          break; // give up on this mirror, try the next one
+        }
+
+        const data = (await res.json()) as { elements: Array<{ id: number }> };
+        return {
+          facilityCount: data.elements.length,
+          elementIds: data.elements.map((e) => e.id),
+        };
+      } catch (err) {
+        lastError = err;
+        if (attempt === 0) {
+          await sleep(3000);
+          continue;
+        }
+        break;
+      }
+    }
   }
 
-  const data = (await res.json()) as { elements: Array<{ id: number }> };
-  return {
-    facilityCount: data.elements.length,
-    elementIds: data.elements.map((e) => e.id),
-  };
+  // Every mirror failed — surface this as an error so autoResolve treats it
+  // as inconclusive (needs_review) rather than silently reading as "zero
+  // facilities found" (which would incorrectly look like strong gap evidence).
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("All Overpass mirrors failed for an unknown reason.");
 }
