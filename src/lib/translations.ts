@@ -895,12 +895,13 @@ export function getTranslation(lang: LanguageCode): TranslationKeys {
 
 export function getCategoryLabel(category: string, lang: LanguageCode): string {
   const t = getTranslation(lang);
-  switch (category) {
-    case 'Water': return t.catWater;
-    case 'Roads': return t.catRoads;
-    case 'Electricity': return t.catElectricity;
-    case 'Sanitation': return t.catSanitation;
-    case 'Other': return t.catOther;
+  const normalized = (category || '').toLowerCase();
+  switch (normalized) {
+    case 'water': return t.catWater;
+    case 'roads': return t.catRoads;
+    case 'electricity': return t.catElectricity;
+    case 'sanitation': return t.catSanitation;
+    case 'other': return t.catOther;
     default: return category;
   }
 }
