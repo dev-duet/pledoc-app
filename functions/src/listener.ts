@@ -81,6 +81,14 @@ function extractJson(rawText: string): GeminiResult {
     return parsed as GeminiResult;
 }
 
+const CATEGORY_MAP: Record<string, "Water" | "Roads" | "Electricity" | "Sanitation" | "Other"> = {
+    water: "Water",
+    roads: "Roads",
+    electricity: "Electricity",
+    sanitation: "Sanitation",
+    other: "Other",
+};
+
 async function processComplaint(
     docId: string,
     data: FirebaseFirestore.DocumentData
@@ -93,8 +101,11 @@ async function processComplaint(
         return;
     }
 
+    // Use transcript if available (voice mode), or issue_summary (text mode)
+    const rawContent = data.transcript || data.issue_summary || "";
+
     const prompt = buildIngestionPrompt({
-        transcript: data.transcript ?? "",
+        transcript: rawContent,
         language: data.language,
         location: data.location,
     });
@@ -108,19 +119,23 @@ async function processComplaint(
         const rawText = response.text ?? "";
         const result = extractJson(rawText);
 
+        // Normalize category to Title Case matching frontend types
+        const normalizedCategory =
+            CATEGORY_MAP[result.category?.toLowerCase()] || data.category || "Other";
+
         await docRef.update({
-            category: result.category,
-            issue_summary: result.issue_summary,
-            transcript: result.cleaned_transcript,
-            language: result.detected_language,
-            translated_transcript_en: result.translated_transcript_en,
-            location_detail: result.location_detail,
+            category: normalizedCategory,
+            issue_summary: result.issue_summary || data.issue_summary || "",
+            transcript: data.transcript ? result.cleaned_transcript : null,
+            language: result.detected_language || data.language || "en",
+            translated_transcript_en: result.translated_transcript_en || "",
+            location_detail: result.location_detail || null,
             processing_status: "processed",
             processed_at: admin.firestore.FieldValue.serverTimestamp(),
         });
 
         failureCache.delete(docId);
-        console.log(`Processed complaint ${docId} -> category: ${result.category}`);
+        console.log(`Processed complaint ${docId} -> category: ${normalizedCategory}`);
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         console.error(`Failed to process complaint ${docId}:`, message);
