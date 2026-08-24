@@ -6,8 +6,8 @@ export const CLUSTER_CONFIG = {
   /** Cosine similarity threshold for joining an existing cluster (per brief: ~0.85). */
   SIMILARITY_THRESHOLD: 0.85,
 
-  /** Gemini embedding model. text-embedding-004 is Google's current general-purpose embedding model. */
-  EMBEDDING_MODEL: "text-embedding-004",
+  /** Gemini embedding model. gemini-embedding-001 is the current general-purpose text embedding model (superseded text-embedding-004). */
+  EMBEDDING_MODEL: "gemini-embedding-001",
 
   /** How many existing clusters in a bucket to compare a new complaint against before giving up and creating a new one. */
   MAX_CANDIDATE_CLUSTERS_PER_BUCKET: 25,
