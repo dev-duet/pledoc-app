@@ -27,7 +27,8 @@ export async function addComplaint(
       created_at: Date.now(),
     });
     return docRef.id;
-  } catch {
+  } catch (err) {
+    console.error('Firestore write failed:', err);
     // Fallback: store in localStorage as mock
     const id = 'local-' + Math.random().toString(36).substring(2, 12);
     const complaint: Complaint = {

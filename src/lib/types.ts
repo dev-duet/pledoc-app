@@ -12,7 +12,7 @@ export interface Complaint {
   pseudonymous_id: string;
   verification_status: VerificationStatus;
   priority_score: number;
-  cluster_id: string | null;
+  cluster_id?: string | null;
   created_at: number;
 }
 

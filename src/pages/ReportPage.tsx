@@ -73,7 +73,6 @@ export function ReportPage() {
         pseudonymous_id: pseudoId,
         verification_status: 'needs_review',
         priority_score: 0,
-        cluster_id: null,
       });
       // Store the last submission for the confirmation page
       sessionStorage.setItem('pledoc_last_complaint', JSON.stringify({
@@ -166,7 +165,6 @@ export function ReportPage() {
         pseudonymous_id: pseudoId,
         verification_status: 'needs_review',
         priority_score: 0,
-        cluster_id: null,
       });
       sessionStorage.setItem('pledoc_last_complaint', JSON.stringify({
         id, category: voiceCategory, location,
@@ -207,22 +205,20 @@ export function ReportPage() {
       <div className="flex gap-2 p-1 bg-cream-200 rounded-xl mb-6 w-fit">
         <button
           onClick={() => setMode('text')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all ${
-            mode === 'text'
-              ? 'bg-surface-50 text-citizen-700 shadow-soft'
-              : 'text-ink-500 hover:text-ink-700'
-          }`}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all ${mode === 'text'
+            ? 'bg-surface-50 text-citizen-700 shadow-soft'
+            : 'text-ink-500 hover:text-ink-700'
+            }`}
         >
           <Type className="w-4 h-4" />
           {t.textMode}
         </button>
         <button
           onClick={() => setMode('voice')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all ${
-            mode === 'voice'
-              ? 'bg-surface-50 text-data-700 shadow-soft'
-              : 'text-ink-500 hover:text-ink-700'
-          }`}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all ${mode === 'voice'
+            ? 'bg-surface-50 text-data-700 shadow-soft'
+            : 'text-ink-500 hover:text-ink-700'
+            }`}
         >
           <Mic className="w-4 h-4" />
           {t.voiceMode}
@@ -344,11 +340,10 @@ export function ReportPage() {
             <div className="flex flex-col items-center py-8">
               <button
                 onClick={isRecording ? stopRecording : startRecording}
-                className={`w-24 h-24 rounded-full flex items-center justify-center shadow-soft-lg transition-all hover:scale-105 ${
-                  isRecording
-                    ? 'bg-decision-700 animate-pulse-soft'
-                    : 'bg-data-700 hover:bg-data-800'
-                }`}
+                className={`w-24 h-24 rounded-full flex items-center justify-center shadow-soft-lg transition-all hover:scale-105 ${isRecording
+                  ? 'bg-decision-700 animate-pulse-soft'
+                  : 'bg-data-700 hover:bg-data-800'
+                  }`}
               >
                 {isRecording ? (
                   <MicOff className="w-10 h-10 text-white" />
