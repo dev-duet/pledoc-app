@@ -38,9 +38,15 @@ if (!GEMINI_API_KEY) {
 }
 
 // --- Firebase Admin setup ---
-const serviceAccountPath = path.resolve(__dirname, "../service-account.json");
+const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+if (!serviceAccountJson) {
+    console.error(
+        "Missing FIREBASE_SERVICE_ACCOUNT_JSON. Set it as an environment variable containing the full service account JSON."
+    );
+    process.exit(1);
+}
 admin.initializeApp({
-    credential: admin.credential.cert(serviceAccountPath),
+    credential: admin.credential.cert(JSON.parse(serviceAcoountJson)),
 });
 const db = admin.firestore();
 
