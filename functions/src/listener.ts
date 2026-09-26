@@ -58,6 +58,8 @@ const MODEL_NAME = "gemini-3.6-flash";
 // script to hammer the same doc in a tight retry loop while it's running.
 const failureCache = new Map<string, number>(); // docId -> last failure timestamp
 const RETRY_COOLDOWN_MS = 60_000;
+const MAX_RETRY_ATTEMPTS = 3;
+const RETRY_SWEEP_INTERVAL_MS = 2 * 60 * 1000; // every 2 minutes
 
 interface GeminiResult {
     detected_language: string;
@@ -165,7 +167,29 @@ async function processComplaint(
             });
     }
 }
+async function retryFailedComplaints(): Promise<void> {
+    const snapshot = await db
+        .collection("complaints")
+        .where("processing_status", "==", "processing_failed")
+        .get();
 
+    if (snapshot.empty) return;
+
+    console.log(`Retry sweep: found ${snapshot.size} failed complaint(s).`);
+    for (const doc of snapshot.docs) {
+        const data = doc.data();
+        const attempts = data.retry_attempts || 0;
+
+        if (attempts >= MAX_RETRY_ATTEMPTS) {
+            await doc.ref.update({ processing_status: "needs_manual_review" });
+            console.log(`${doc.id} exceeded max retries — flagged for manual review.`);
+            continue;
+        }
+
+        await doc.ref.update({ retry_attempts: attempts + 1 });
+        await processComplaint(doc.id, data);
+    }
+}
 // --- Listen for new complaints created from this point forward ---
 const startedAt = Date.now();
 console.log(`Listening for new complaints created after ${new Date(startedAt).toISOString()}...`);
@@ -188,5 +212,10 @@ db.collection("complaints")
 // Keep the process alive — onSnapshot runs in the background, but Node will
 // exit if nothing else is scheduled. This script is meant to be left running
 // in a terminal for as long as you're testing/demoing.
+setInterval(() => {
+    retryFailedComplaints().catch((err) => console.error("Retry sweep failed:", err));
+}, RETRY_SWEEP_INTERVAL_MS);
+
+retryFailedComplaints().catch((err) => console.error("Initial retry sweep failed:", err));
 process.stdin.resume();
 console.log("Listener running. Press Ctrl+C to stop.");
