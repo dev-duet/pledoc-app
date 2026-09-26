@@ -46,7 +46,7 @@ if (!serviceAccountJson) {
     process.exit(1);
 }
 admin.initializeApp({
-    credential: admin.credential.cert(JSON.parse(serviceAcoountJson)),
+    credential: admin.credential.cert(JSON.parse(serviceAccountJson)),
 });
 const db = admin.firestore();
 
