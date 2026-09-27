@@ -1,6 +1,6 @@
 import * as admin from "firebase-admin";
 import { resolveGeoVerification } from "./autoResolve";
-import { applyClusterDecision } from "./cascade";
+import { applyClusterDecision, cascadePriorityOnly } from "./cascade";
 import { computePriorityScore } from "../prioritization/priorityCalculator";
 import { Cluster, Complaint } from "./types";
 
@@ -87,10 +87,10 @@ async function processCluster(clusterId: string, cluster: Cluster): Promise<void
         category: cluster.category,
         country: cluster.country,
       });
-      await db.collection("clusters").doc(clusterId).update({
-        priority_score: priorityScore,
-        infra_gap_severity: decision.infra_gap_severity,
-      });
+      // Status isn't changing, but the score is — cascade the score alone
+      // so complaints in a still-needs_review cluster don't sit on stale
+      // priority_score values.
+      await cascadePriorityOnly(db, clusterId, priorityScore, decision.infra_gap_severity);
       return;
     }
 
