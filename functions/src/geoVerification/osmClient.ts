@@ -56,6 +56,22 @@ export async function geocodeLocation(
   }
   queriesToTry.push(cleanLocation);
 
+  // If the location has comma-separated parts (e.g. detailed street addresses),
+  // try the broader locality/district/city segments:
+  const segments = cleanLocation.split(",").map((s) => s.trim()).filter(Boolean);
+  if (segments.length >= 4) {
+    queriesToTry.push(segments.slice(-4).join(", "));
+  }
+  if (segments.length >= 3) {
+    queriesToTry.push(segments.slice(-3).join(", "));
+  }
+
+  // Also try deduplicating repeated words (e.g. "karnataka india karnataka india")
+  const dedupedWords = Array.from(new Set(cleanLocation.split(/\s+/))).join(" ");
+  if (dedupedWords !== cleanLocation && !queriesToTry.includes(dedupedWords)) {
+    queriesToTry.push(dedupedWords);
+  }
+
   for (const query of queriesToTry) {
     const params = new URLSearchParams({
       q: query,

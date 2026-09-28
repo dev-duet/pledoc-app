@@ -27,7 +27,19 @@ interface ResolveInput {
 export async function resolveGeoVerification(input: ResolveInput): Promise<GeoVerificationDecision> {
   const { category, clusterLocation, complaintLocations, count, country } = input;
 
-  const clusterPoint = await geocodeLocation(clusterLocation, country);
+  let clusterPoint = await geocodeLocation(clusterLocation, country);
+
+  // Fallback: If the normalized location_bucket (which has commas stripped)
+  // fails to geocode, try the raw original locations from the cluster's complaints
+  // which preserve comma-separated address structure.
+  if (!clusterPoint && complaintLocations && complaintLocations.length > 0) {
+    for (const comp of complaintLocations) {
+      if (comp.location && comp.location !== clusterLocation) {
+        clusterPoint = await geocodeLocation(comp.location, country);
+        if (clusterPoint) break;
+      }
+    }
+  }
 
   if (!clusterPoint) {
     return {
