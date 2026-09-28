@@ -17,10 +17,41 @@ import { ComplaintForClustering } from "./types";
  * since its query criteria don't change after processing).
  */
 
+import * as fs from "fs";
+import * as path from "path";
+import * as dotenv from "dotenv";
+
+dotenv.config({ path: path.resolve(__dirname, "../../.env") });
+dotenv.config({ path: path.resolve(__dirname, "../.env") });
+
 if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.applicationDefault(),
-  });
+  const possiblePaths = [
+    process.env.GOOGLE_APPLICATION_CREDENTIALS,
+    path.resolve(process.cwd(), "service-account.json"),
+    path.resolve(__dirname, "../../service-account.json"),
+    path.resolve(__dirname, "../service-account.json"),
+  ].filter(Boolean) as string[];
+
+  const keyPath = possiblePaths.find((p) => fs.existsSync(p));
+
+  if (keyPath) {
+    const serviceAccount = JSON.parse(fs.readFileSync(keyPath, "utf8"));
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+      projectId: serviceAccount.project_id || "pledoc-app",
+    });
+  } else if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+      projectId: serviceAccount.project_id || "pledoc-app",
+    });
+  } else {
+    admin.initializeApp({
+      credential: admin.credential.applicationDefault(),
+      projectId: process.env.GCLOUD_PROJECT || "pledoc-app",
+    });
+  }
 }
 
 const db = admin.firestore();
@@ -70,22 +101,28 @@ function isReadyToCluster(data: FirebaseFirestore.DocumentData): boolean {
 }
 
 function startWatcher(): void {
+  if (!process.env.GEMINI_API_KEY) {
+    console.warn(
+      "[clustering] ⚠️ Warning: GEMINI_API_KEY is not set. Please set it via $env:GEMINI_API_KEY=\"...\" or in functions/.env before processing complaints."
+    );
+  }
   console.log("[clustering] Watching complaints collection for unclustered, ready complaints...");
 
-  db.collection("complaints")
-    .where("cluster_id", "==", null)
-    .onSnapshot(
-      (snapshot) => {
-        snapshot.docChanges().forEach((change) => {
-          if (change.type === "removed") return;
+  db.collection("complaints").onSnapshot(
+    (snapshot) => {
+      snapshot.docChanges().forEach((change) => {
+        if (change.type === "removed") return;
 
-          const data = change.doc.data();
-          if (!isReadyToCluster(data)) {
-            // Teammate's Gemini pipeline hasn't filled in category/location/
-            // issue_summary yet — nothing to cluster on. Will be picked up
-            // automatically once those fields are written.
-            return;
-          }
+        const data = change.doc.data();
+        if (data.cluster_id) {
+          return;
+        }
+        if (!isReadyToCluster(data)) {
+          // Teammate's Gemini pipeline hasn't filled in category/location/
+          // issue_summary yet — nothing to cluster on. Will be picked up
+          // automatically once those fields are written.
+          return;
+        }
 
           const complaint: ComplaintForClustering = {
             id: change.doc.id,

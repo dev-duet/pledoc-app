@@ -18,12 +18,43 @@ import { Cluster, Complaint } from "./types";
  * way, since they never depended on the Functions runtime.
  */
 
+import * as fs from "fs";
+import * as path from "path";
+import * as dotenv from "dotenv";
+
+dotenv.config({ path: path.resolve(__dirname, "../../.env") });
+dotenv.config({ path: path.resolve(__dirname, "../.env") });
+
 // --- Auth: needs a service account key since this isn't running inside
 // Firebase's own infra. See README for how to get one from the console.
 if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.applicationDefault(),
-  });
+  const possiblePaths = [
+    process.env.GOOGLE_APPLICATION_CREDENTIALS,
+    path.resolve(process.cwd(), "service-account.json"),
+    path.resolve(__dirname, "../../service-account.json"),
+    path.resolve(__dirname, "../service-account.json"),
+  ].filter(Boolean) as string[];
+
+  const keyPath = possiblePaths.find((p) => fs.existsSync(p));
+
+  if (keyPath) {
+    const serviceAccount = JSON.parse(fs.readFileSync(keyPath, "utf8"));
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+      projectId: serviceAccount.project_id || "pledoc-app",
+    });
+  } else if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+      projectId: serviceAccount.project_id || "pledoc-app",
+    });
+  } else {
+    admin.initializeApp({
+      credential: admin.credential.applicationDefault(),
+      projectId: process.env.GCLOUD_PROJECT || "pledoc-app",
+    });
+  }
 }
 
 const db = admin.firestore();
