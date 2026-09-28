@@ -42,25 +42,49 @@ export async function geocodeLocation(
 ): Promise<GeoPoint | null> {
   await throttleNominatim();
 
-  const params = new URLSearchParams({
-    q: countryHint ? `${location}, ${countryHint}` : location,
-    format: "json",
-    limit: "1",
-  });
+  const cleanLocation = location.trim();
+  const hasCountry =
+    countryHint &&
+    countryHint.trim() !== "" &&
+    countryHint.toLowerCase() !== "unknown" &&
+    cleanLocation.toLowerCase().includes(countryHint.toLowerCase().trim());
 
-  const res = await fetch(`${NOMINATIM_URL}?${params.toString()}`, {
-    headers: { "User-Agent": GEO_CONFIG.NOMINATIM_USER_AGENT },
-  });
+  const queriesToTry: string[] = [];
 
-  if (!res.ok) {
-    console.warn(`Nominatim geocode failed (${res.status}) for "${location}"`);
-    return null;
+  if (countryHint && !hasCountry && countryHint.toLowerCase() !== "unknown") {
+    queriesToTry.push(`${cleanLocation}, ${countryHint.trim()}`);
+  }
+  queriesToTry.push(cleanLocation);
+
+  for (const query of queriesToTry) {
+    const params = new URLSearchParams({
+      q: query,
+      format: "json",
+      limit: "1",
+    });
+
+    try {
+      const res = await fetch(`${NOMINATIM_URL}?${params.toString()}`, {
+        headers: { "User-Agent": GEO_CONFIG.NOMINATIM_USER_AGENT },
+      });
+
+      if (!res.ok) {
+        console.warn(`Nominatim geocode failed (${res.status}) for "${query}"`);
+        continue;
+      }
+
+      const results = (await res.json()) as Array<{ lat: string; lon: string }>;
+      if (results && results.length > 0) {
+        return { lat: parseFloat(results[0].lat), lon: parseFloat(results[0].lon) };
+      }
+    } catch (err) {
+      console.warn(`Nominatim request error for "${query}":`, err);
+    }
+
+    await throttleNominatim();
   }
 
-  const results = (await res.json()) as Array<{ lat: string; lon: string }>;
-  if (!results.length) return null;
-
-  return { lat: parseFloat(results[0].lat), lon: parseFloat(results[0].lon) };
+  return null;
 }
 
 /**
