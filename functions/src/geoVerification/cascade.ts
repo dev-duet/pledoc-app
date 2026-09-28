@@ -1,16 +1,16 @@
 import * as admin from "firebase-admin";
 import { VerificationStatus } from "./types";
 
-interface ClusterFields {
+type ClusterFields = {
   verification_status?: VerificationStatus;
   priority_score: number;
   infra_gap_severity: number;
-}
+};
 
-interface ComplaintFields {
+type ComplaintFields = {
   verification_status?: VerificationStatus;
   priority_score: number;
-}
+};
 
 /**
  * Shared batch-write logic: writes `clusterFields` to the cluster doc and
