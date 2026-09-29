@@ -1,42 +1,56 @@
 /**
- * Normalizes a location string for bucketing purposes: lowercase, trimmed,
- * punctuation stripped, whitespace collapsed.
- *
- * IMPORTANT CAVEAT: the frontend's location input is only partially
- * structured — Country and State/Province are dropdowns, but District/
- * Ward/Locality is a free-text field citizens type themselves. Track B
- * doesn't see that raw input directly, though: per the pipeline, your
- * teammate's Gemini step extracts/normalizes `location` before Track B
- * reads it. So the real question is how consistent HER extraction's
- * output is for the same real-world place — not how consistent citizens'
- * raw typing is.
- *
- * This function's normalization (case/whitespace/punctuation) is a safety
- * net for minor formatting differences, but it can't fix two genuinely
- * different normalized strings for the same real place (e.g. "Koramangala,
- * Bengaluru" vs "Koramangala 5th Block, Bengaluru"). Recommend testing this
- * once real Gemini-extracted complaints exist: pull a handful of `location`
- * values from real complaints for the same area and check how much they
- * vary before trusting exact-match bucketing at scale. If they vary more
- * than expected, the fix belongs here (e.g. matching on a shared substring
- * or falling back to a coarser country+state-only bucket) — not in the
- * clustering logic downstream.
+ * Normalizes a location string for bucketing: keeps only the coarse part
+ * (locality, city, state, country) and drops door numbers, street names
+ * and pin codes, so two complaints from the same neighbourhood land in the
+ * same bucket even if their exact addresses differ. The full address stays
+ * in the complaint's own `location` and `location_detail` fields.
  */
 export function normalizeLocation(location: string): string {
-  return location
-    .trim()
-    .toLowerCase()
-    .replace(/[.,;]/g, "")
-    .replace(/\s+/g, " ");
+  const parts = location
+    .split(",")
+    .map((p) =>
+      p
+        .toLowerCase()
+        .replace(/[-–]\s*\d{5,6}\b/g, "") // "- 560011" style pin codes
+        .replace(/\b\d{5,6}\b/g, "") // standalone pin codes
+        .replace(/[.;#]/g, "")
+        .replace(/\s+/g, " ")
+        .trim()
+    )
+    .filter((p) => p.length > 0)
+    // drop pure door-number segments like "604", "12/3", "no 5"
+    .filter((p) => !/^(no\s*)?\d+[a-z]?([/-]\d+[a-z]?)*$/.test(p));
+
+  const unique = parts.filter((p, i) => parts.indexOf(p) === i);
+  // keep only the last 4 parts: locality, city, state, country
+  return unique.slice(-4).join(" ");
 }
 
 /**
  * Builds the bucket key used for the cheap first-pass grouping step
- * (category + geographic bucket). Complaints in the same bucket are
- * candidates for the finer embedding-similarity clustering step; complaints
- * in different buckets are never compared against each other at all —
- * this is what keeps the pipeline cheap at scale.
+ * (category + geographic bucket).
  */
 export function buildBucketKey(category: string, location: string): string {
   return `${category.trim().toLowerCase()}::${normalizeLocation(location)}`;
+}
+
+const COUNTRY_NAMES = [
+  "India",
+  "China",
+  "Brazil",
+  "Russia",
+  "South Africa",
+  "Egypt",
+  "Ethiopia",
+  "Iran",
+  "United Arab Emirates",
+];
+
+/**
+ * The frontend doesn't send a `country` field (the Firestore rules don't
+ * allow it), so derive it from the location text instead.
+ */
+export function extractCountry(location: string): string {
+  const lower = location.toLowerCase();
+  return COUNTRY_NAMES.find((c) => lower.includes(c.toLowerCase())) ?? "Unknown";
 }
