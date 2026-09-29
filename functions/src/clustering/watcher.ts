@@ -9,9 +9,7 @@ import { ComplaintForClustering } from "./types";
  * Function trigger, since Firestore-triggered Functions require Blaze.
  *
  * This listens for complaints that are ready to cluster: category,
- * location, and issue_summary all populated (meaning the Gemini pipeline
- * has finished processing them), but cluster_id is still empty. Once this
- * watcher assigns a cluster_id, the complaint drops out of the query.
+ * location, and issue_summary all populated, but cluster_id still empty.
  */
 
 import * as fs from "fs";
@@ -65,22 +63,42 @@ function runSerialized(bucketKey: string, task: () => Promise<void>): Promise<vo
   return next;
 }
 
+// Complaint ids currently waiting or being processed. Firestore fires
+// several snapshot events for one complaint (e.g. every time the Gemini
+// pipeline updates it), and without this the same complaint could be
+// clustered twice and counted twice.
+const queued = new Set<string>();
+
 async function processComplaint(complaint: ComplaintForClustering): Promise<void> {
+  if (queued.has(complaint.id)) return;
+  queued.add(complaint.id);
+
   const bucketKey = buildBucketKey(complaint.category, complaint.location);
 
-  await runSerialized(bucketKey, async () => {
-    try {
-      const result = await assignComplaintToCluster(db, complaint);
-      console.log(
-        `[clustering] Complaint ${complaint.id} -> ${result.action} cluster ${result.clusterId} (bucket: ${bucketKey})`
-      );
-    } catch (err) {
-      // Never assign a fallback/guessed cluster_id on failure — leaving it
-      // empty means this complaint stays in the watcher's query and will be
-      // retried the next time anything about it changes.
-      console.error(`[clustering] Failed to cluster complaint ${complaint.id}`, err);
-    }
-  });
+  try {
+    await runSerialized(bucketKey, async () => {
+      try {
+        // Re-read the complaint right before assigning: it may already have
+        // been clustered while this task was waiting in the queue.
+        const fresh = await db.collection("complaints").doc(complaint.id).get();
+        if (!fresh.exists || fresh.data()?.cluster_id) {
+          return;
+        }
+
+        const result = await assignComplaintToCluster(db, complaint);
+        console.log(
+          `[clustering] Complaint ${complaint.id} -> ${result.action} cluster ${result.clusterId} (bucket: ${bucketKey})`
+        );
+      } catch (err) {
+        // Never assign a fallback/guessed cluster_id on failure — leaving it
+        // empty means this complaint stays in the watcher's query and will
+        // be retried the next time anything about it changes.
+        console.error(`[clustering] Failed to cluster complaint ${complaint.id}`, err);
+      }
+    });
+  } finally {
+    queued.delete(complaint.id);
+  }
 }
 
 function isReadyToCluster(data: FirebaseFirestore.DocumentData): boolean {
