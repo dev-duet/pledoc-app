@@ -8,6 +8,7 @@
   <a href="https://pledoc-app.web.app"><img src="https://img.shields.io/badge/🌐_Live_Site-Open_App-34A853?style=for-the-badge" alt="Live Site" /></a>
 
   <br />
+  <br />
 
   [![React](https://img.shields.io/badge/React-Vite-61DAFB?style=flat-square&logo=react&logoColor=black)](https://vitejs.dev/)
   [![TypeScript](https://img.shields.io/badge/TypeScript-Strict-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -15,6 +16,7 @@
   [![Powered by Gemini](https://img.shields.io/badge/Powered_by-Gemini-4285F4?style=flat-square)](https://deepmind.google/technologies/gemini/)
   [![Backend on Railway](https://img.shields.io/badge/Backend-Railway-0B0D0E?style=flat-square&logo=railway&logoColor=white)](https://railway.com/)
 
+  <br />
   <br />
 
   *Pledoc turns scattered, multilingual citizen complaints about water, roads, electricity and sanitation into verified, clustered and prioritized signals that national policymakers can act on.*
