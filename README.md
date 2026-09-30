@@ -1,5 +1,7 @@
 <div align="center">
 
+  <img src="docs/logo.png" alt="Pledoc logo" width="140" />
+
   # Pledoc
   ### A Multilingual Citizen Feedback Platform for BRICS Nations
 
@@ -26,36 +28,37 @@
 - [The Problem Statement](#-the-problem-statement)
 - [Our Solution](#-our-solution)
 - [System Architecture](#-system-architecture)
-- [Application Flow & Data Lifecycle](#-application-flow--data-lifecycle)
+- [Life of a Complaint](#-life-of-a-complaint)
 - [Pages & Data Model](#-pages--data-model)
 - [Backend Services](#-backend-services)
 - [Tech Stack Breakdown](#-tech-stack-breakdown)
 - [Reliability & Known Limitations](#-reliability--known-limitations)
 - [Getting Started](#-getting-started)
-- [Team](#-team)
 
 ---
 
 ## 🚨 The Problem Statement
 
-BRICS nations together serve billions of people, and the gaps that matter most in daily life (a dry tap, a broken road, an unreliable power line) are reported the least in a form that policymakers can use:
+The gaps that matter most in daily life (a dry tap, a broken road, an unreliable power line) are the hardest for governments to see in a usable form:
 
-1. **Language barriers:** Citizens describe problems in their own language, and national dashboards work in one or two.
-2. **Unstructured, duplicated reports:** The same broken pipe is reported dozens of times in different words, with no way to tell it is one issue.
+1. **Language barriers:** Citizens describe problems in their own language, while national systems work in one or two.
+2. **Duplicated, unstructured reports:** The same broken pipe is reported dozens of times in different words, with no way to tell it is one issue.
 3. **No verification:** Policymakers cannot tell a real, widespread gap from a one-off or already-resolved report.
-4. **No feedback loop:** Citizens rarely find out whether anyone looked at what they reported.
+4. **No feedback loop:** Citizens rarely learn whether anyone looked at what they reported.
 
 ---
 
 ## 💡 Our Solution
 
-**Pledoc** is a multilingual, AI-assisted feedback pipeline with two sides:
+Pledoc is a multilingual, AI-assisted pipeline that runs from a citizen's phone to a policymaker's dashboard and back.
 
-**For the citizen:**
-Report an issue by voice or text in one of 9 languages, pick a real administrative location (Country → State/Province → District/Ward/Locality), and receive a complaint ID. Later, look that ID up on the status page to see whether the report was reviewed and what the outcome was.
-
-**For the policymaker:**
-A live dashboard of *clusters*, not raw reports. AI translates and structures each complaint, groups similar ones by category, location and semantic similarity, cross-checks each cluster against open map data, and assigns a priority score. The policymaker then verifies or invalidates a cluster, and that decision flows back to every citizen complaint inside it.
+| Step | What happens |
+| :--- | :--- |
+| **1. Report** | A citizen reports an issue by voice or text in one of 9 languages, picks their country and state, and receives a complaint ID. |
+| **2. Understand** | Gemini cleans the transcript, detects the language, translates to English, classifies the issue and writes a one-line summary. |
+| **3. Cluster and verify** | Similar reports are merged into one cluster, then cross-checked against OpenStreetMap and scored for priority. |
+| **4. Decide** | A policymaker verifies or invalidates each cluster. The decision cascades to every complaint inside it. |
+| **5. Close the loop** | The citizen looks up their complaint ID and sees the outcome. |
 
 **Languages (9):**
 
@@ -64,76 +67,54 @@ A live dashboard of *clusters*, not raw reports. AI translates and structures ea
 | Primary (fully translated) | English, Hindi, Mandarin, Portuguese, Russian, Zulu |
 | Secondary (functional) | Arabic, Persian, Amharic |
 
+**Countries (10):** Brazil, Russia, India, China, South Africa, Egypt, Ethiopia, Iran, Saudi Arabia, UAE.
+
+> **🎙️ Reporting by voice in another language?** Switch the site language first (language switcher, top right), then tap the mic. Speech recognition follows the selected site language, so speaking Hindi while the site is set to English will be transcribed poorly. Chrome gives the best speech-recognition support.
+
 ---
 
 ## 🏗 System Architecture
 
 ```mermaid
-graph TD
-    subgraph Citizen ["Citizen Side (Firebase Hosting)"]
-        A[Citizen] -->|"Voice or text, 9 languages"| B["React Web App"]
-        B -->|"Country / State / District"| B
-    end
+flowchart LR
+    A["👤 Citizen<br/>voice or text<br/>9 languages"] --> B["🌐 Web App<br/>React on<br/>Firebase Hosting"]
+    B --> C["🧠 Understand<br/>Gemini translates,<br/>classifies, summarizes"]
+    C --> D["🧩 Cluster<br/>embeddings merge<br/>duplicate reports"]
+    D --> E["🗺️ Verify and Score<br/>OpenStreetMap checks<br/>priority score"]
+    E --> F["🏛️ Policymaker<br/>dashboard:<br/>verify or invalid"]
+    F --> G["🔎 Citizen sees<br/>the outcome<br/>on /status"]
 
-    B -->|"Creates complaint"| F[("Cloud Firestore")]
-
-    subgraph Backend ["Backend Service (Railway, Node.js)"]
-        T{"Ingestion Agent (Gemini)"}
-        C{"Clustering Agent (embeddings)"}
-        G{"Geo-Verification and Priority"}
-    end
-
-    F -.->|"onSnapshot"| T
-    F -.->|"onSnapshot"| C
-    F -.->|"onSnapshot"| G
-    T -->|"Translation, category, summary"| F
-    C -->|"cluster_id, count"| F
-    G -->|"Status and priority score"| F
-    G <-->|"Nearby facilities"| O["OpenStreetMap Overpass API"]
-
-    subgraph Policy ["Policymaker Side"]
-        F -.->|"Live sync"| D["Policymaker Dashboard"]
-        D -->|"Verify or Invalid"| F
-    end
-
-    F -.->|"Status lookup by complaint ID"| S["Citizen Status Page"]
-
-    classDef agent fill:#34A853,stroke:#fff,stroke-width:2px,color:#fff;
-    classDef db fill:#FBBC05,stroke:#fff,stroke-width:2px,color:#000;
-    class T,C,G agent;
-    class F db;
+    classDef citizen fill:#4F46E5,stroke:#312E81,color:#fff;
+    classDef ai fill:#0F766E,stroke:#134E4A,color:#fff;
+    classDef decide fill:#C2410C,stroke:#7C2D12,color:#fff;
+    class A,B,G citizen;
+    class C,D,E ai;
+    class F decide;
 ```
+
+<sub>🟣 citizen-facing · 🟢 AI and data processing · 🟠 decisions. Every stage reads and writes one shared Cloud Firestore database, so all screens update live.</sub>
 
 ---
 
-## 🔄 Application Flow & Data Lifecycle
+## 🔄 Life of a Complaint
 
 ```mermaid
 sequenceDiagram
-    participant Citizen
-    participant WebApp as Web App
-    participant Firestore as Cloud Firestore
-    participant Ingest as Ingestion (Gemini)
-    participant Cluster as Clustering
-    participant Geo as Geo-Verification
-    participant Policy as Policymaker
+    autonumber
+    actor C as Citizen
+    participant W as Web App + Firestore
+    participant B as Backend (Gemini · Clustering · OSM)
+    actor P as Policymaker
 
-    Citizen->>WebApp: Reports issue (voice or text) with structured location
-    WebApp->>Firestore: Creates complaint (pseudonymous ID)
-    Firestore-->>WebApp: Complaint ID shown on confirmation page
-    Firestore-->>Ingest: New complaint detected
-    Ingest->>Ingest: Detect language, translate, extract category and summary
-    Ingest->>Firestore: Writes structured fields back
-    Firestore-->>Cluster: Unclustered complaint detected
-    Cluster->>Firestore: Joins or creates a cluster (category + location bucket)
-    Firestore-->>Geo: Cluster needs review
-    Geo->>Geo: Cross-check with OpenStreetMap, apply auto-resolution rules
-    Geo->>Firestore: Writes verification status and priority score
-    Firestore-->>Policy: Dashboard updates live
-    Policy->>Firestore: Clicks Verify or Invalid on a cluster
-    Firestore->>Firestore: Status cascades to every complaint in the cluster
-    Citizen->>WebApp: Looks up complaint ID on Status page
-    WebApp-->>Citizen: Shows verified or invalid outcome
+    C->>W: Report by voice or text
+    W-->>C: Complaint ID
+    W->>B: New complaint detected
+    B->>W: Translate, classify, cluster, verify, score
+    W-->>P: Dashboard updates live
+    P->>W: Verify or Invalid a cluster
+    W->>W: Decision cascades to every complaint
+    C->>W: Look up complaint ID
+    W-->>C: Verified or Invalid
 ```
 
 ---
@@ -145,11 +126,11 @@ sequenceDiagram
 | Route | Purpose |
 | :--- | :--- |
 | `/` | Language selection |
-| `/home` | Entry point: report an issue or check status |
-| `/report` | Voice or text report with live voice-transcript preview and structured location input |
-| `/confirmation` | Shows the complaint ID after submission |
-| `/status` | Looks up a complaint by its complaint ID and shows its current outcome |
-| `/dashboard` | Policymaker dashboard of clusters (English only) |
+| `/home` | Choose: report an issue or check status |
+| `/report` | Text or voice report. Country and State/Province come from dropdowns of real administrative divisions; district, ward or locality is typed in (optional). Voice reports show a live transcript preview, and the citizen reviews the details before submitting. |
+| `/confirmation` | Shows the complaint ID (with a copy button) and a quick "similar reports" hint. The hint is a lightweight client-side count, not the real clustering result. |
+| `/status` | Looks up a complaint by its **complaint ID** and shows its current outcome |
+| `/dashboard` | Policymaker dashboard (English only): clusters sorted by priority, category or status, filtered by category or status, viewable by country, with expandable linked complaints and Verify / Invalid actions |
 
 ### Firestore collections
 
@@ -157,17 +138,17 @@ sequenceDiagram
 
 | Field | Description |
 | :--- | :--- |
-| `category` | Water, Roads, Electricity or Sanitation |
-| `location` | Structured administrative location entered by the citizen |
-| `issue_summary` | AI-written one-line summary |
-| `transcript` / `translated_transcript_en` | Original text and its English translation |
+| `category` | Water, Roads, Electricity, Sanitation or Other. The citizen picks one, and Gemini re-classifies it. |
+| `location` / `location_detail` | Location from the form, plus any extra detail (street, landmark) Gemini extracted from the text |
+| `issue_summary` | One-line English summary |
+| `transcript` / `translated_transcript_en` | Cleaned original transcript (voice reports) and its English translation |
 | `language` | Detected language code |
-| `pseudonymous_id` | Anonymous submitter identifier |
+| `pseudonymous_id` | Anonymous submitter ID stored in the browser |
 | `cluster_id` | The cluster this complaint belongs to |
 | `verification_status` | `needs_review`, `verified` or `invalid` |
 | `priority_score` | Inherited from the cluster |
-| `processing_status` / `processed_at` | Ingestion pipeline state |
-| `created_at` | Submission time |
+| `processing_status` | `processed`, `processing_failed` (being retried) or `needs_manual_review` |
+| `created_at` / `processed_at` | Submission and processing times |
 
 **`clusters`**
 
@@ -175,96 +156,139 @@ sequenceDiagram
 | :--- | :--- |
 | `category` / `location_bucket` / `country` | What the cluster groups together, and where |
 | `count` | Number of complaints in the cluster |
-| `embedding` | Semantic vector used for similarity merging |
+| `embedding` | Running-average semantic vector used for similarity matching |
 | `verification_status` | `needs_review`, `verified` or `invalid` |
 | `infra_gap_severity` / `priority_score` | Inputs and output of prioritization |
 
-> **Cascade rule:** when a policymaker verifies or invalidates a cluster, its status and priority score are written to every complaint with that `cluster_id`. This is what makes the citizen-facing `/status` lookup reflect the real decision.
+> **Cascade rule:** when a cluster's status changes, its status and priority score are written to every complaint with that `cluster_id`. This is what makes the citizen's `/status` lookup reflect the real decision.
 
 ---
 
 ## ⚙️ Backend Services
 
-The backend runs as one persistent Node.js service on Railway. Three Firestore `onSnapshot` watchers run inside it:
+One persistent Node.js service on Railway runs three Firestore `onSnapshot` watchers side by side:
 
 | Service | Trigger | What it does |
 | :--- | :--- | :--- |
-| **Ingestion (Gemini)** | New complaint | One structured Gemini call detects the language, translates to English, and extracts the category and issue summary, then writes them back to the complaint. |
-| **Clustering** | Unclustered, ready complaint | Groups by category and location bucket, then merges near-duplicates using Gemini embedding similarity. Creates a new cluster or joins an existing one and keeps `count` accurate. |
-| **Geo-verification and prioritization** | Cluster in `needs_review` | Cross-checks the location against OpenStreetMap (Overpass), applies auto-resolution rules (for example, a small cluster in an area with many mapped facilities and no corroborating signal is marked likely-false or resolved), and assigns a priority score. The final call stays with the policymaker. |
+| **🧠 Ingestion (Gemini)** | New complaint | One structured Gemini call returns cleaned transcript, detected language, English translation, category, summary and location detail as JSON, then writes them back to the complaint. |
+| **🧩 Clustering** | Complaint with no cluster yet | Buckets by category and coarse location, then compares Gemini embeddings (`gemini-embedding-001`) of the issue summary against the bucket's clusters. At 0.85 cosine similarity or higher it joins that cluster, otherwise it starts a new one. |
+| **🗺️ Geo-verification and priority** | Cluster in `needs_review` | Geocodes the cluster (OpenStreetMap Nominatim), checks nearby facilities (Overpass API) and applies the rules below. |
+
+**Auto-resolution rules** (a cluster that fits none of them stays with the policymaker):
+
+| Situation | Outcome |
+| :--- | :--- |
+| 15 or more reports, all geo-tagged within 800 m of each other | ✅ Verified |
+| No relevant facility (water point, substation, road and so on) within 6 km | ✅ Verified |
+| 5 or fewer reports, but a relevant facility within 1.5 km and no corroboration | ❌ Invalid (likely false or already resolved) |
+| Anything else, or the location can't be geocoded | 🕵️ Needs review |
+
+**Priority score:**
+
+```
+priority = w1 × (report volume × verification multiplier)
+         + w2 × infrastructure-gap severity
+         + w3 × demographic weight
+```
+
+Default weights are 0.5, 0.35 and 0.15. They live in a Firestore config document, so they can be retuned without a code change.
 
 ---
 
 ## 🛠 Tech Stack Breakdown
 
 ### **Frontend & Client**
-- **React + Vite + TypeScript:** Fast, strictly typed UI, with `react-router-dom` for routing.
-- **Tailwind CSS:** Design system with three accent colors: indigo for citizen-facing screens, teal for AI and data processing, rust for decisions and output.
-- **Web Speech API:** Live voice-transcript preview while the citizen speaks. It is a convenience preview, not the authoritative transcript.
-- **Firebase JS SDK:** Real-time Firestore reads and writes from the client.
+- **React 18 + Vite + TypeScript:** Fast, strictly typed UI with `react-router-dom` routing.
+- **Tailwind CSS:** Three accent colors: indigo for citizen-facing screens, teal for AI and data processing, rust for decisions.
+- **Web Speech API:** Live voice-transcript preview in the selected language. It is a preview, and Gemini cleans up the text afterwards.
+- **Firebase JS SDK:** Real-time Firestore reads and writes. Right-to-left layout for Arabic and Persian.
 
 ### **Backend & Infrastructure**
-- **Cloud Firestore (`asia-south1`):** Shared real-time state between the citizen app, the backend watchers and the dashboard.
+- **Cloud Firestore (`asia-south1`):** Shared real-time state for the citizen app, the backend and the dashboard.
 - **Firebase Hosting:** Serves the frontend at `pledoc-app.web.app`.
-- **Node.js on Railway:** Runs the three long-lived watchers (see [Backend Services](#-backend-services)).
-- **OpenStreetMap Overpass API:** Free, open map data for geo-verification.
+- **Node.js 24 on Railway:** Runs the three long-lived watchers from the `functions/` folder.
+- **OpenStreetMap (Nominatim + Overpass):** Free, open geocoding and facility data.
 
 ### **Artificial Intelligence**
-- **Gemini Flash (`gemini-3.6-flash`):** Language detection, translation, and structured field extraction in a single JSON-returning prompt.
-- **Gemini embeddings:** Semantic vectors for clustering similar complaints across phrasing and language.
+- **Gemini Flash (`gemini-3.6-flash`)** via `@google/genai`: Transcript cleanup, language detection, translation and structured extraction in a single JSON-returning prompt.
+- **Gemini embeddings (`gemini-embedding-001`):** Semantic similarity for grouping duplicate reports across phrasing.
 
 ---
 
 ## 🛡️ Reliability & Known Limitations
 
-**What is built in:**
-- **Retry sweep for AI failures:** If a Gemini call fails (503 "high demand" or 429 rate limit), the complaint is retried every 2 minutes, up to 3 retries, then flagged for manual review. Nothing silently disappears.
-- **Independent stages:** Clustering does not wait on ingestion, so a Gemini outage still lets complaints be grouped by their structured location and category.
-- **Decision cascade:** Cluster-level decisions always propagate to complaint-level documents, so the citizen-facing status never drifts from the dashboard.
+**Built in:**
+- **Retry sweep for AI failures:** If a Gemini call fails (503 or 429), the complaint is marked `processing_failed`, retried every 2 minutes up to 3 times, then flagged `needs_manual_review`. Nothing silently disappears.
+- **Never guesses:** If geocoding or embedding fails, the cluster or complaint is left in place for review or retry instead of receiving a made-up result.
+- **Keeps working through an AI outage:** The report form already captures category, location and description, so clustering can continue while Gemini is unavailable.
+- **One crash never stops the others:** The three watchers share one process with global error handlers, and per-item failures are logged and skipped.
+- **Concurrency-safe clustering:** Reports arriving at the same moment in the same bucket are processed one at a time so they don't create duplicate clusters.
+- **Decision cascade:** Cluster decisions always propagate to complaint documents, so `/status` never drifts from the dashboard.
 
-**Known limitations (honest notes):**
-- **Gemini free tier:** The API key is on the free tier, which allows about 20 requests per day per model. Heavy testing can hit this limit, and affected complaints are held for retry or manual review.
-- **Hosting credit:** The Railway backend runs on Railway's one-time trial credit (about $4.60, 27 days remaining as of Sept 30, 2026). If the credit has run out when you read this, new submissions are still saved to Firestore but not processed until the service is restarted with credit. The frontend and stored data on Firebase are unaffected.
-- **Why Railway:** The Firebase Spark plan does not allow deployed Cloud Function triggers. In production, this backend would move to Cloud Functions on the Blaze plan.
-- **Geo-verification is heuristic:** Map coverage varies by region, so sparse areas produce weaker signals.
-- **Voice accuracy:** The in-browser transcript is a live preview. Storing raw audio for direct Gemini transcription is a planned improvement.
-- **Not built yet:** WhatsApp ingestion (Twilio sandbox, then the full WhatsApp Business API) is future work. The dashboard is English-only.
+**Known limitations:**
+- **Gemini free tier:** The API key allows about 20 requests per day per model, so heavy testing can hit the limit. Affected complaints are retried or flagged for manual review.
+- **Hosting credit:** The backend runs on Railway's one-time trial credit (about $4.60, 27 days remaining as of Sept 30, 2026). If it has run out, new submissions are still saved to Firestore but not processed until the service is restarted with credit. The frontend and stored data on Firebase are unaffected.
+- **Why Railway:** The Firebase Spark plan doesn't allow deployed Cloud Function triggers, so the same logic runs as a long-lived listener. It can move to Cloud Functions on the Blaze plan.
+- **Placeholders:** The demographic weight is a neutral constant (0.5) and the official-registry cross-check is a stub. Both are designed to accept real per-country data sources later.
+- **Geo-verification is heuristic:** Map coverage varies by region, so sparse areas give weaker signals. OpenStreetMap's geocoder is rate-limited to about one request per second.
+- **Priority weights:** They are adjustable in Firestore, with no dashboard controls yet.
+- **Voice:** Speech recognition quality depends on the browser and language. Storing raw audio for direct Gemini transcription is a planned improvement.
+- **Not built yet:** WhatsApp intake (Twilio sandbox, then the full WhatsApp Business API) is future work. The dashboard is English-only.
 
 ---
 
 ## 🚀 Getting Started
 
 ### Prerequisites
-- Node.js
+- Node.js 24 (the backend requires it)
 - A Firebase project with Firestore enabled
-- A Gemini API key (backend only, never exposed to the browser)
+- A Gemini API key
+- A Firebase **service-account key** (for the backend, see below)
 
-### Run the frontend
+### 1. Frontend
 
 ```bash
 git clone https://github.com/dev-duet/pledoc-app.git
 cd pledoc-app
 npm install
-npm run dev
+cp .env.example .env
 ```
 
-Add your Firebase web configuration in a local `.env` file before running. Production build:
+Fill in the six `VITE_FIREBASE_*` values from Firebase Console → Project settings → Your apps, then:
 
 ```bash
-npm run build
+npm run dev          # local dev server
+npm run typecheck    # TypeScript check
+npm run build        # production build
 ```
 
-### Run the backend
+### 2. Backend
 
-The backend needs your Gemini API key and Firebase service-account credentials as environment variables. Install its dependencies and run it with the same start command configured on Railway. It should log three lines confirming the ingestion, clustering and geo-verification watchers are running.
+```bash
+cd functions
+npm install
+```
+
+Create `functions/.env` with your two secrets:
+
+```env
+GEMINI_API_KEY=your-gemini-api-key
+FIREBASE_SERVICE_ACCOUNT_JSON={"type":"service_account","project_id":"...", ...}
+```
+
+**Getting the Firebase service-account key:** Firebase Console → Project settings → **Service accounts** → **Generate new private key**. This downloads a `.json` file. Paste the entire contents onto a single line as the value of `FIREBASE_SERVICE_ACCOUNT_JSON`.
+
+> ⚠️ **Never commit this key.** It grants full admin access to your Firestore. `functions/.gitignore` already excludes `.env` and `service-account*.json`, so if you keep a local copy of the file, name it `service-account.json` or keep it outside the repo. On Railway, set the same two values as service variables.
+
+Start all three watchers in one process:
+
+```bash
+npm run listen:all
+```
+
+A healthy start logs three lines: `Listening for new complaints...`, `[clustering] Watching complaints collection...` and `[geo-verify] Watching clusters collection...`. Each module can also be run on its own (see the READMEs in `functions/src/clustering` and `functions/src/geoVerification`).
 
 ---
-
-## 👥 Team
-
-Built by **dev-duet**, two developers working in parallel on separate tracks:
-- **Ingestion and understanding:** multilingual Gemini pipeline, retry handling, backend service
-- **Verification and prioritization:** geo-verification, clustering and priority scoring
 
 <div align="center">
   <br/>
