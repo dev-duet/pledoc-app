@@ -28,7 +28,6 @@
 - [The Problem Statement](#-the-problem-statement)
 - [Our Solution](#-our-solution)
 - [System Architecture](#-system-architecture)
-- [Life of a Complaint](#-life-of-a-complaint)
 - [Pages & Data Model](#-pages--data-model)
 - [Backend Services](#-backend-services)
 - [Tech Stack Breakdown](#-tech-stack-breakdown)
@@ -75,47 +74,51 @@ Pledoc is a multilingual, AI-assisted pipeline that runs from a citizen's phone 
 
 ## 🏗 System Architecture
 
-```mermaid
-flowchart LR
-    A["👤 Citizen<br/>voice or text<br/>9 languages"] --> B["🌐 Web App<br/>React on<br/>Firebase Hosting"]
-    B --> C["🧠 Understand<br/>Gemini translates,<br/>classifies, summarizes"]
-    C --> D["🧩 Cluster<br/>embeddings merge<br/>duplicate reports"]
-    D --> E["🗺️ Verify and Score<br/>OpenStreetMap checks<br/>priority score"]
-    E --> F["🏛️ Policymaker<br/>dashboard:<br/>verify or invalid"]
-    F --> G["🔎 Citizen sees<br/>the outcome<br/>on /status"]
-
-    classDef citizen fill:#4F46E5,stroke:#312E81,color:#fff;
-    classDef ai fill:#0F766E,stroke:#134E4A,color:#fff;
-    classDef decide fill:#C2410C,stroke:#7C2D12,color:#fff;
-    class A,B,G citizen;
-    class C,D,E ai;
-    class F decide;
-```
-
-<sub>🟣 citizen-facing · 🟢 AI and data processing · 🟠 decisions. Every stage reads and writes one shared Cloud Firestore database, so all screens update live.</sub>
-
----
-
-## 🔄 Life of a Complaint
+From a citizen's report to a policymaker's decision, and back to the citizen:
 
 ```mermaid
-sequenceDiagram
-    autonumber
-    actor C as Citizen
-    participant W as Web App + Firestore
-    participant B as Backend (Gemini · Clustering · OSM)
-    actor P as Policymaker
+flowchart TD
+    A(["Citizen reports an issue<br/>by voice or text"])
+    B["Saved to Firestore<br/>Citizen receives a complaint ID"]
+    C["Gemini translates,<br/>classifies and summarizes"]
+    D{"Gemini call<br/>succeeded?"}
+    R["Retried every 2 minutes, up to 3 times,<br/>then flagged for manual review"]
+    E{"Similar cluster<br/>already exists?"}
+    J["Join that cluster"]
+    N["Start a new cluster"]
+    G{"OpenStreetMap rules<br/>conclusive?"}
+    V["Cluster is auto-verified<br/>or auto-invalid"]
+    H["Cluster stays<br/>needs review"]
+    P["Priority score is set and the cluster<br/>appears on the live dashboard"]
+    X["Policymaker clicks<br/>Verify or Invalid"]
+    Y["Decision cascades to every<br/>complaint in the cluster"]
+    Z(["Citizen checks the complaint ID<br/>on /status and sees the outcome"])
 
-    C->>W: Report by voice or text
-    W-->>C: Complaint ID
-    W->>B: New complaint detected
-    B->>W: Translate, classify, cluster, verify, score
-    W-->>P: Dashboard updates live
-    P->>W: Verify or Invalid a cluster
-    W->>W: Decision cascades to every complaint
-    C->>W: Look up complaint ID
-    W-->>C: Verified or Invalid
+    A --> B --> C --> D
+    D -->|No| R
+    R --> D
+    D -->|Yes| E
+    E -->|Yes| J
+    E -->|No| N
+    J --> G
+    N --> G
+    G -->|Yes| V
+    G -->|No| H
+    V --> P
+    H --> P
+    P --> X --> Y --> Z
+
+    classDef citizen fill:#4F46E5,stroke:#312E81,color:#ffffff,stroke-width:2px;
+    classDef ai fill:#0F766E,stroke:#134E4A,color:#ffffff,stroke-width:2px;
+    classDef decision fill:#ffffff,stroke:#0F766E,color:#134E4A,stroke-width:3px;
+    classDef human fill:#C2410C,stroke:#7C2D12,color:#ffffff,stroke-width:2px;
+    class A,B,Z citizen;
+    class C,R,J,N,V,H,P ai;
+    class D,E,G decision;
+    class X,Y human;
 ```
+
+<sub>🟣 citizen-facing · 🟢 AI and data processing · ⬜ automated decision · 🟠 policymaker decision. Every stage reads and writes one shared Cloud Firestore database, so all screens update live.</sub>
 
 ---
 
