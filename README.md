@@ -1,6 +1,5 @@
 <p align="center">
   <img src="assets/logo.svg" alt="Pledoc Logo" width="500" />
-</p>
 
   # Pledoc
   ### A Multilingual Citizen Feedback Platform for BRICS Nations
