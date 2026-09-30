@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.svg" alt="Pledoc Logo" width="450" />
+  <img src="assets/logo.svg" alt="Pledoc Logo" width="500" />
 </p>
 
   # Pledoc
