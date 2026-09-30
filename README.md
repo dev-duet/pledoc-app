@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://iconify.design" alt="Pledoc Logo" width="120" height="120" />
+  <img src="https://jsdelivr.net" alt="Pledoc Logo" width="120" height="120" />
 </p>
 
   # Pledoc
